@@ -893,6 +893,47 @@
     </style>
 </head>
 <body>
+<style>
+#pw-gate{position:fixed;inset:0;background:#0d0d1f;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;font-family:system-ui,sans-serif;}
+#pw-gate h2{color:#FFD600;font-size:1.6rem;margin-bottom:8px;}
+#pw-gate p{color:#888;font-size:.9rem;margin-bottom:28px;}
+#pw-gate input{background:#1a1a3e;border:2px solid #333;border-radius:10px;padding:14px 20px;font-size:1.1rem;color:#fff;width:280px;outline:none;text-align:center;letter-spacing:.1em;}
+#pw-gate input:focus{border-color:#FFD600;}
+#pw-gate button{margin-top:14px;background:#FFD600;color:#000;border:none;border-radius:10px;padding:12px 36px;font-size:1rem;font-weight:700;cursor:pointer;}
+#pw-gate .err{color:#ef5350;font-size:.85rem;margin-top:10px;min-height:1.2em;}
+</style>
+<div id="pw-gate">
+  <h2>🤖 Hilary Kai Dashboard</h2>
+  <p>Enter password to continue</p>
+  <input type="password" id="pw-input" placeholder="Password" autofocus
+    onkeydown="if(event.key==='Enter')checkPw()">
+  <button onclick="checkPw()">Unlock</button>
+  <div class="err" id="pw-err"></div>
+</div>
+<script>
+(function(){
+  const HASH = "243fc8225b7b1f753506de0bbb0d6ba6a2ce5daa6d924d0c4fca04d7201f4ace";
+  const SK = 'hk_dash_auth';
+  if(sessionStorage.getItem(SK) === HASH){
+    document.getElementById('pw-gate').style.display='none';
+    return;
+  }
+  async function checkPw(){
+    const val = document.getElementById('pw-input').value;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(val));
+    const hex = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(hex === HASH){
+      sessionStorage.setItem(SK, HASH);
+      document.getElementById('pw-gate').style.display='none';
+    } else {
+      document.getElementById('pw-err').textContent = 'Incorrect password.';
+      document.getElementById('pw-input').value='';
+      document.getElementById('pw-input').focus();
+    }
+  }
+  window.checkPw = checkPw;
+})();
+</script>
     <div id="top-bar">
         <div id="hq-title">
             🏢 AGENT VILLAGE HQ
