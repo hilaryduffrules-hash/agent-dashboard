@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3a5a2d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agent HQ">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <title>Agent Village HQ - Live Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #3a5a2d;
+            color: #fff;
+            overflow: hidden;
+            image-rendering: pixelated;
+            transition: background 2s ease-in-out;
+        }
+
+        /* Day/Night cycle classes */
+        body.time-dawn {
+            background: radial-gradient(circle at 50% 80%, #ff9966 0%, #ff7744 20%, #4a7c3a 60%);
+        }
+        
+        body.time-day {
+            background: radial-gradient(circle at 30% 40%, rgba(90, 130, 60, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 60%, rgba(90, 130, 60, 0.2) 0%, transparent 50%),
+                        #4a7c3a;
+        }
+        
+        body.time-dusk {
+            background: radial-gradient(circle at 50% 80%, #cc6699 0%, #994477 20%, #3a4a5a 60%);
+        }
+        
+        body.time-night {
+            background: radial-gradient(circle at 30% 40%, rgba(50, 60, 90, 0.3) 0%, transparent 50%),
+                        #1a2a3a;
+        }
+
+        /* Stars for night time */
+        .star {
+            position: fixed;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 2s;
+        }
+        
+        body.time-night .star {
+            opacity: 0.8;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.3; }
+        }
+
+        #game-world {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: transparent;
+        }
+
+        #connection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: linear-gradient(180deg, #6b9dd4 0%, #5a8cc3 100%);
+            border-bottom: 4px solid #2a4a6a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 200;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        #hq-title {
+            background: white;
+            color: #2a4a6a;
+            padding: 12px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            letter-spacing: 2px;
+        }
+
+        .live-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        #stats-bar {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.25);
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: 2px solid rgba(255,255,255,0.3);
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.9;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        /* Environment objects */
+        .env-object {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .building {
+            pointer-events: auto;
+        }
+
+        .building-sprite {
+            width: 140px;
+            height: 120px;
+            background: linear-gradient(135deg, #c45a4a 0%, #a44a3a 100%);
+            border-radius: 8px 8px 4px 4px;
+            box-shadow: 0 8px 0 #7a3a2a, 0 12px 20px rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        .building-roof {
+            position: absolute;
+            top: -20px;
+            left: -10px;
+            right: -10px;
+            height: 30px;
+            background: linear-gradient(135deg, #8b4513 0%, #654321 100%);
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+
+        .building-window {
+            width: 30px;
+            height: 35px;
+            background: linear-gradient(135deg, #87ceeb 0%, #4682b4 100%);
+            border: 3px solid #5a3a2a;
+            position: absolute;
+            border-radius: 4px;
+        }
+
+        .apple-tree {
+            width: 100px;
+            height: 120px;
+            font-size: 80px;
+        }
+
+        .apple {
+            position: absolute;
+            font-size: 24px;
+            animation: sway 3s ease-in-out infinite;
+        }
+
+        @keyframes sway {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(3px); }
+        }
+
+        .bush {
+            font-size: 40px;
+        }
+
+        .path {
+            position: absolute;
+            background: repeating-linear-gradient(45deg, #8b7355, #8b7355 10px, #7a6345 10px, #7a6345 20px);
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        /* Agent styling with animations */
+        .agent {
+            position: absolute;
+            width: auto;
+            min-width: 110px;
+            cursor: pointer;
+            transition: transform 0.2s, left 2s ease-in-out, top 2s ease-in-out;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .agent:hover {
+            transform: scale(1.15);
+            z-index: 100 !important;
+        }
+
+        /* Idle animation - gentle bobbing */
+        .agent.status-idle .agent-sprite {
+            animation: bob-idle 3s ease-in-out infinite;
+        }
+        
+        @keyframes bob-idle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        /* Active animation - working with sparkle */
+        .agent.status-active .agent-sprite::after {
+            content: '✨';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 20px;
+            animation: sparkle 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: rotate(0deg) scale(1); }
+            50% { opacity: 0.5; transform: rotate(180deg) scale(1.3); }
+        }
+
+        .agent-sprite {
+            width: 72px;
+            height: 75px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #ffd700 0%, #ffb700 100%);
+            border-radius: 12px 12px 8px 8px;
+            box-shadow: 0 6px 0 #cc9900, 0 10px 15px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            position: relative;
+        }
+
+        .agent-sprite.type-cron {
+            background: linear-gradient(135deg, #ff9f40 0%, #ff7f20 100%);
+            box-shadow: 0 6px 0 #cc6600, 0 10px 15px rgba(0,0,0,0.4);
+        }
+
+        .agent-sprite.type-direct {
+            background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+            box-shadow: 0 6px 0 #6d28d9, 0 10px 15px rgba(0,0,0,0.4);
+        }
+
+        .agent-sprite.type-group {
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            box-shadow: 0 6px 0 #1e40af, 0 10px 15px rgba(0,0,0,0.4);
+        }
+
+        .agent-sprite::before {
+            content: '';
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            height: 20px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 50%;
+        }
+
+        /* Alert bubble for errors */
+        .alert-bubble {
+            position: absolute;
+            top: -15px;
+            left: -15px;
+            width: 32px;
+            height: 32px;
+            background: #ef4444;
+            border-radius: 50%;
+            border: 3px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            animation: pulse-alert 1.5s ease-in-out infinite;
+            z-index: 10;
+        }
+        
+        @keyframes pulse-alert {
+            0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5); }
+            50% { transform: scale(1.2); box-shadow: 0 4px 16px rgba(239, 68, 68, 0.8); }
+        }
+
+        .status-dot {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .status-active { background: #10b981; animation: pulse 2s infinite; }
+        .status-idle { background: #fbbf24; }
+        .status-other { background: #6b7280; }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+
+        .agent-name {
+            background: rgba(0,0,0,0.95);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 10px;
+            border: 2px solid rgba(255,255,255,0.5);
+            white-space: nowrap;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .agent-task {
+            background: rgba(0,0,0,0.85);
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            text-align: center;
+            margin-top: 6px;
+            color: #e5e7eb;
+            border: 2px solid rgba(255,255,255,0.3);
+            max-width: 220px;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .agent-current-task {
+            background: rgba(16, 185, 129, 0.2);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-align: center;
+            margin-top: 4px;
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            max-width: 220px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-style: italic;
+        }
+
+        #info-panel {
+            position: fixed;
+            right: 20px;
+            top: 85px;
+            width: 360px;
+            background: rgba(0,0,0,0.92);
+            border: 3px solid #5a8cc3;
+            border-radius: 8px;
+            padding: 22px;
+            display: none;
+            z-index: 150;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+
+        #info-panel.active { display: block; }
+
+        #info-panel h3 {
+            color: #5a8cc3;
+            font-size: 17px;
+            margin-bottom: 14px;
+            border-bottom: 2px solid #5a8cc3;
+            padding-bottom: 8px;
+        }
+
+        .info-row {
+            margin: 10px 0;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .info-label {
+            color: #fbbf24;
+            font-weight: bold;
+            display: inline-block;
+            width: 110px;
+        }
+
+        .history-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 2px solid #5a8cc3;
+        }
+
+        .history-entry {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 3px solid #fbbf24;
+            font-size: 12px;
+        }
+
+        .history-time {
+            color: #60a5fa;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        #activity-log {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 360px;
+            max-height: 150px;
+            background: rgba(0,0,0,0.92);
+            border: 3px solid #5a8cc3;
+            border-radius: 8px;
+            padding: 18px;
+            overflow-y: auto;
+            z-index: 150;
+        }
+
+        #activity-log h3 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: #5a8cc3;
+            border-bottom: 2px solid #5a8cc3;
+            padding-bottom: 8px;
+        }
+
+        .log-entry {
+            padding: 6px 0;
+            font-size: 13px;
+            line-height: 1.6;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .log-time {
+            color: #fbbf24;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .log-agent {
+            color: #60a5fa;
+            font-weight: bold;
+        }
+
+        #refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #5a8cc3 0%, #4a7cb3 100%);
+            border: 3px solid #2a4a6a;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 150;
+        }
+
+        #refresh-btn:hover {
+            background: linear-gradient(135deg, #4a7cb3 0%, #3a6ca3 100%);
+        }
+
+        #sound-toggle {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #5a8cc3 0%, #4a7cb3 100%);
+            border: 3px solid #2a4a6a;
+            border-radius: 8px;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 150;
+        }
+
+        #sound-toggle:hover {
+            background: linear-gradient(135deg, #4a7cb3 0%, #3a6ca3 100%);
+        }
+
+        .building-label {
+            position: absolute;
+            bottom: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 6px 14px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            border: 2px solid rgba(255,255,255,0.4);
+        }
+
+        #debug-console {
+            position: fixed;
+            bottom: 220px;
+            left: 20px;
+            width: 380px;
+            max-height: 100px;
+            display: none;
+            background: rgba(0,0,0,0.95);
+            border: 2px solid #ef4444;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 11px;
+            color: #fbbf24;
+            overflow-y: auto;
+            z-index: 160;
+            font-family: monospace;
+        }
+
+        /* Leaderboard panel */
+        #leaderboard {
+            position: fixed;
+            top: 85px;
+            right: 20px;
+            width: 280px;
+            background: rgba(0,0,0,0.92);
+            border: 3px solid #5a8cc3;
+            border-radius: 8px;
+            padding: 18px;
+            z-index: 150;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        #leaderboard h3 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: #5a8cc3;
+            border-bottom: 2px solid #5a8cc3;
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .leaderboard-toggle {
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.7;
+        }
+
+        .leaderboard-toggle:hover {
+            opacity: 1;
+        }
+
+        .leaderboard-entry {
+            padding: 10px;
+            margin: 6px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            border-left: 3px solid #fbbf24;
+        }
+
+        .leaderboard-rank {
+            font-size: 18px;
+            font-weight: bold;
+            margin-right: 12px;
+            color: #fbbf24;
+        }
+
+        .leaderboard-agent {
+            flex: 1;
+            color: #60a5fa;
+            font-weight: bold;
+        }
+
+        .leaderboard-tokens {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        /* NEW: Stats Panels - Retro Terminal Aesthetic */
+        .stats-panel {
+            position: fixed;
+            background: rgba(0, 10, 0, 0.95);
+            border: 2px solid #00ff00;
+            border-radius: 4px;
+            padding: 14px;
+            z-index: 140;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .stats-panel h4 {
+            font-size: 13px;
+            margin-bottom: 10px;
+            color: #00ff00;
+            border-bottom: 1px solid #00ff00;
+            padding-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stats-panel::before {
+            content: '┌─────────────────────────┐';
+            position: absolute;
+            top: -2px;
+            left: 0;
+            font-size: 10px;
+            color: #00aa00;
+            opacity: 0;
+        }
+
+        #session-types-panel {
+            left: 400px;
+            top: 85px;
+            width: 200px;
+        }
+
+        #model-usage-panel {
+            left: 620px;
+            top: 85px;
+            width: 320px;
+        }
+
+        #cron-jobs-panel {
+            left: 20px;
+            bottom: 190px;
+            width: 360px;
+            max-height: 180px;
+        }
+
+        .session-type-row, .model-row, .cron-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+            border-bottom: 1px dotted rgba(0, 255, 0, 0.2);
+        }
+
+        .session-type-row:last-child, .model-row:last-child, .cron-row:last-child {
+            border-bottom: none;
+        }
+
+        .type-label {
+            color: #00dd00;
+        }
+
+        .type-count {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .model-name {
+            flex: 1;
+            color: #00dd00;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .model-tokens {
+            width: 70px;
+            text-align: right;
+            color: #00ff00;
+        }
+
+        .model-cost {
+            width: 65px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        /* Cost color coding */
+        .cost-free { color: #00ff00; }
+        .cost-cheap { color: #88ff88; }
+        .cost-moderate { color: #ffff00; }
+        .cost-expensive { color: #ff8800; }
+        .cost-very-expensive { color: #ff4444; }
+
+        .free-badge {
+            background: #00ff00;
+            color: #000;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 9px;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        .cron-name {
+            flex: 1;
+            color: #00dd00;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cron-schedule {
+            width: 90px;
+            color: #00aa00;
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .cron-last {
+            width: 70px;
+            color: #007700;
+            font-size: 9px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .cron-status {
+            width: 16px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .cron-enabled { color: #00ff00; }
+        .cron-disabled { color: #ff4444; }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            /* ── Mobile: full scroll layout, no game world ── */
+            html, body {
+                overflow-y: auto !important;
+                height: auto !important;
+                background: #1a1a2e;
+            }
+
+            #top-bar {
+                position: relative !important;
+                height: auto;
+                flex-direction: column;
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            #hq-title {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+
+            #stats-bar {
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: center;
+            }
+
+            .stat-box {
+                min-width: 80px;
+                padding: 6px 10px;
+            }
+
+            .stat-label { font-size: 9px; }
+            .stat-value { font-size: 16px; }
+
+            /* Hide game world on mobile — panels take over */
+            #game-world { display: none !important; }
+
+            #debug-console { display: none !important; }
+            #sound-toggle { display: none !important; }
+
+            /* All panels → static, full-width, stacked */
+            #leaderboard,
+            #session-types-panel,
+            #model-usage-panel,
+            #cron-jobs-panel,
+            #activity-log {
+                position: static !important;
+                width: calc(100vw - 24px) !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                left: auto !important;
+                right: auto !important;
+                top: auto !important;
+                bottom: auto !important;
+                margin: 8px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Leaderboard: max 5 entries on mobile */
+            #leaderboard {
+                border: 3px solid #5a8cc3;
+                background: rgba(0,0,0,0.92);
+                border-radius: 8px;
+                padding: 14px;
+            }
+
+            /* Stats panels already have green retro style */
+            #session-types-panel,
+            #model-usage-panel,
+            #cron-jobs-panel {
+                max-height: 300px !important;
+                overflow-y: auto;
+            }
+
+            #activity-log {
+                max-height: 200px !important;
+                overflow-y: auto;
+            }
+
+            /* Cron row adjustments for narrow screens */
+            .cron-row {
+                font-size: 11px;
+                flex-wrap: nowrap;
+                gap: 4px;
+            }
+            .cron-name { 
+                flex: 1; 
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .cron-schedule { width: 70px; font-size: 9px; }
+            .cron-last { width: 60px; font-size: 9px; }
+
+            /* Info panel: slide up from bottom */
+            #info-panel {
+                position: fixed !important;
+                width: calc(100vw - 24px) !important;
+                right: 12px !important;
+                left: 12px !important;
+                top: auto !important;
+                bottom: 12px !important;
+                max-height: 60vh !important;
+                z-index: 500 !important;
+            }
+
+            /* Refresh button: fixed bottom center */
+            #refresh-btn {
+                position: fixed !important;
+                bottom: 12px !important;
+                right: 12px !important;
+                left: auto !important;
+                padding: 10px 20px !important;
+                font-size: 12px !important;
+                z-index: 400 !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="top-bar">
+        <div id="hq-title">
+            🏢 AGENT VILLAGE HQ
+            <span class="live-dot"></span>
+        </div>
+        <div id="stats-bar">
+            <div class="stat-box">
+                <span class="stat-label">👥 AGENTS</span>
+                <span class="stat-value" id="agent-count">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">⚡ ACTIVE</span>
+                <span class="stat-value" id="active-count">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">🪙 TOKENS</span>
+                <span class="stat-value" id="token-count">0K</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">💰 COST</span>
+                <span class="stat-value" id="cost-estimate">$0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-world">
+        <svg id="connection-overlay"></svg>
+    </div>
+
+    <div id="debug-console"></div>
+
+    <div id="leaderboard">
+        <h3>
+            🏆 LEADERBOARD
+            <span class="leaderboard-toggle" onclick="toggleLeaderboard()">▼</span>
+        </h3>
+        <div id="leaderboard-entries"></div>
+    </div>
+
+    <!-- NEW: Session Types Panel -->
+    <div id="session-types-panel" class="stats-panel">
+        <h4>📊 SESSION TYPES</h4>
+        <div id="session-types-content">
+            <div style="color: #00aa00; font-style: italic;">Loading...</div>
+        </div>
+    </div>
+
+    <!-- NEW: Model Usage Panel -->
+    <div id="model-usage-panel" class="stats-panel">
+        <h4>🧠 MODEL USAGE</h4>
+        <div id="model-usage-content">
+            <div style="color: #00aa00; font-style: italic;">Loading...</div>
+        </div>
+    </div>
+
+    <!-- NEW: Cron Jobs Panel -->
+    <div id="cron-jobs-panel" class="stats-panel">
+        <h4>⏰ CRON JOBS</h4>
+        <div id="cron-jobs-content">
+            <div style="color: #00aa00; font-style: italic;">Loading...</div>
+        </div>
+    </div>
+
+    <div id="activity-log">
+        <h3 onclick="toggleActivityLog()">📋 ACTIVITY LOG (LIVE)</h3>
+        <div id="log-entries"></div>
+    </div>
+
+    <div id="info-panel">
+        <h3 id="panel-title">Agent Details</h3>
+        <div id="panel-content"></div>
+    </div>
+
+    <button id="sound-toggle" onclick="toggleSound()">🔇</button>
+    <button id="refresh-btn">🔄 REFRESH</button>
+
+    <script>
+        // Extract token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        // ── GitHub Pages static data config ──────────────────────────────────
+        const _GH_OWNER = 'hilaryduffrules-hash';
+        const _GH_REPO  = 'agent-dashboard';
+        const _GH_BRANCH = 'main';
+        const DATA_BASE_URL = `https://raw.githubusercontent.com/${_GH_OWNER}/${_GH_REPO}/${_GH_BRANCH}/data`;
+        // ─────────────────────────────────────────────────────────────────────
+        // Fetch and display last-updated timestamp from meta.json
+        async function fetchLastUpdated() {
+            try {
+                const r = await fetch(`${DATA_BASE_URL}/meta.json?t=${Date.now()}`);
+                const d = await r.json();
+                const el = document.getElementById('gh-last-updated');
+                if (el && d.updated) {
+                    const dt = new Date(d.updated);
+                    el.textContent = 'Data: ' + dt.toLocaleString();
+                    el.style.display = 'inline';
+                }
+            } catch(e) {}
+        }
+        fetchLastUpdated();
+        setInterval(fetchLastUpdated, 60000);
+
+
+        const authToken = urlParams.get('token') || '';
+        
+        const world = document.getElementById('game-world');
+        const debugConsole = document.getElementById('debug-console');
+        let soundEnabled = false;
+        let audioContext = null;
+        let previousAgentCount = 0;
+        let allSessions = [];
+        let agentPositions = new Map(); // Track agent positions for building walks
+
+        // Building positions (center points)
+        const buildings = {
+            mainHQ: { x: 15, y: 25 },      // Adjusted to center of building
+            cronStation: { x: 79, y: 22 },
+            dataLab: { x: 67, y: 72 }
+        };
+
+        function debugLog(msg) {
+            console.log('[Dashboard]', msg);
+            const time = new Date().toLocaleTimeString();
+            debugConsole.innerHTML += `[${time}] ${msg}<br>`;
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+
+        // Sound effects using Web Audio API
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playChime() {
+            if (!soundEnabled || !audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                initAudio();
+            }
+            document.getElementById('sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
+            debugLog(`Sound ${soundEnabled ? 'enabled' : 'disabled'}`);
+        }
+
+        function toggleLeaderboard() {
+            const entries = document.getElementById('leaderboard-entries');
+            const toggle = document.querySelector('.leaderboard-toggle');
+            if (entries.style.display === 'none') {
+                entries.style.display = 'block';
+                toggle.textContent = '▼';
+            } else {
+                entries.style.display = 'none';
+                toggle.textContent = '▶';
+            }
+        }
+
+        function toggleActivityLog() {
+            if (window.innerWidth <= 768) {
+                document.getElementById('activity-log').classList.toggle('collapsed');
+            }
+        }
+
+        // Day/night cycle based on Mountain Time (UTC-7)
+        function updateDayNightCycle() {
+            const now = new Date();
+            // Convert to Mountain Time (UTC-7)
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const mtTime = new Date(utc + (3600000 * -7));
+            const hour = mtTime.getHours();
+            
+            // Remove all time classes
+            document.body.classList.remove('time-dawn', 'time-day', 'time-dusk', 'time-night');
+            
+            if (hour >= 6 && hour < 8) {
+                document.body.classList.add('time-dawn');
+            } else if (hour >= 8 && hour < 18) {
+                document.body.classList.add('time-day');
+            } else if (hour >= 18 && hour < 20) {
+                document.body.classList.add('time-dusk');
+            } else {
+                document.body.classList.add('time-night');
+            }
+        }
+
+        // Generate stars for night time
+        function generateStars() {
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 60 + '%';
+                star.style.animationDelay = Math.random() * 3 + 's';
+                document.body.appendChild(star);
+            }
+        }
+
+        // Calculate cost from token usage
+        function calculateCost(sessions) {
+            let totalCost = 0;
+            
+            sessions.forEach(session => {
+                const model = (session.model || '').toLowerCase();
+                const inputTokens = session.inputTokens || 0;
+                const outputTokens = session.outputTokens || 0;
+                
+                let inputRate = 0, outputRate = 0;
+                
+                if (model.includes('opus')) {
+                    inputRate = 15 / 1000000;   // $15 per MTok
+                    outputRate = 75 / 1000000;  // $75 per MTok
+                } else if (model.includes('sonnet')) {
+                    inputRate = 3 / 1000000;    // $3 per MTok
+                    outputRate = 15 / 1000000;  // $15 per MTok
+                } else if (model.includes('haiku')) {
+                    inputRate = 0.25 / 1000000; // $0.25 per MTok
+                    outputRate = 1.25 / 1000000; // $1.25 per MTok
+                }
+                // phi3:medium and other local models = $0
+                
+                totalCost += (inputTokens * inputRate) + (outputTokens * outputRate);
+            });
+            
+            return totalCost;
+        }
+
+        // Agent counter for phi3:medium distribution
+        let phi3AgentIndex = 0;
+
+        // Known team members by sub-agent label OR UUID fragment
+        const TEAM_ROSTER = {
+            'atlas-pm':       { emoji: '🗺️', name: 'Atlas', role: 'Production Mgr' },
+            'forge-tech':     { emoji: '⚙️', name: 'Forge', role: 'Tech Lead' },
+            'sentinel-qa':    { emoji: '🔍', name: 'Sentinel', role: 'QA Lead' },
+            'muse-creative':  { emoji: '🎨', name: 'Muse', role: 'Creative Director' },
+            'wrench-builder': { emoji: '🔧', name: 'Wrench', role: 'Builder' },
+        };
+        // Map known sub-agent UUIDs to team labels (from session keys)
+        const UUID_TO_LABEL = {
+            '786fd57b-7b1d-4623-bd80-cd07551771de': 'atlas-pm',
+            '54bb6e53-3c94-41b2-8d4f-292b59a32ff9': 'forge-tech',
+            '95f5760b-9759-479c-85b4-fa559a870f66': 'sentinel-qa',
+            'e1bd1737-3f4b-4bfb-9020-87102b947fc5': 'muse-creative',
+        };
+        // Map label keywords to team members (for partial matching)
+        const LABEL_KEYWORDS = {
+            'atlas': 'atlas-pm',
+            'forge': 'forge-tech',
+            'sentinel': 'sentinel-qa',
+            'muse': 'muse-creative',
+            'wrench': 'wrench-builder',
+        };
+
+        function identifyAgent(session) {
+            const key = session.key.toLowerCase();
+            const label = (session.label || '').toLowerCase();
+
+            // Cron jobs — always identify first, use resolved name if available
+            if (key.includes('cron') && !key.includes(':run:')) {
+                const cronName = session.cronName || session.name || null;
+                const displayName = cronName || (() => {
+                    const parts = session.key.split(':');
+                    const uuid = parts[3] || '';
+                    return 'Cron ' + uuid.slice(0, 8);
+                })();
+                return { emoji: '⏰', name: displayName, role: 'Scheduled Job', isCron: true, identity: 'cron:' + (session.key || displayName) };
+            }
+
+            // Main session OR telegram group = Hilary Kai (will be deduplicated)
+            if (key.includes('agent:main:main') || (key.includes('telegram') && key.includes('group'))) {
+                return { emoji: '🤖', name: 'Hilary Kai', role: 'Director/COO', isMain: true, identity: 'hilary-kai' };
+            }
+
+            // Sub-agents: check label or UUID against team roster
+            if (key.includes('subagent')) {
+                // Try exact label match first
+                if (TEAM_ROSTER[label]) {
+                    const t = TEAM_ROSTER[label];
+                    return { ...t, identity: label };
+                }
+                
+                // Try UUID mapping
+                for (const [uuid, teamLabel] of Object.entries(UUID_TO_LABEL)) {
+                    if (key.includes(uuid) && TEAM_ROSTER[teamLabel]) {
+                        const t = TEAM_ROSTER[teamLabel];
+                        return { ...t, identity: teamLabel };
+                    }
+                }
+                
+                // Try partial label match (e.g., "wrench-dashboard-fix" → "wrench")
+                for (const [keyword, teamLabel] of Object.entries(LABEL_KEYWORDS)) {
+                    if (label.includes(keyword) && TEAM_ROSTER[teamLabel]) {
+                        const t = TEAM_ROSTER[teamLabel];
+                        return { ...t, identity: teamLabel };
+                    }
+                }
+                
+                // Generic sub-agent with unique label
+                if (label) {
+                    return { emoji: '🤖', name: label, role: 'Sub-Agent', identity: 'sub:generic:' + label };
+                }
+                
+                // Last resort: use key fragment
+                return { emoji: '🤖', name: 'Worker', role: 'Sub-Agent', identity: 'sub:unknown:' + key.slice(-8) };
+            }
+
+            // Default fallback
+            return { emoji: '🎮', name: 'Agent', role: 'Worker', identity: 'other:' + key.slice(-8) };
+        }
+
+        // Deduplicate sessions: keep the most recent session per identity
+        // Each cron now has its own identity (cron:<key>), so they are kept separate
+        function deduplicateSessions(sessions) {
+            const best = new Map();
+            sessions
+                .filter(s => !s.key.includes(':run:'))  // drop sub-run sessions
+                .forEach(s => {
+                    const agent = identifyAgent(s);
+                    const id = agent.identity;
+                    const existing = best.get(id);
+                    if (!existing || (s.updatedAt || 0) > (existing.updatedAt || 0)) {
+                        best.set(id, s);
+                    }
+                });
+            return Array.from(best.values());
+        }
+
+        function getCurrentTask(session, agent, status) {
+            if (status === 'other') return '';
+            const key = session.key.toLowerCase();
+            const ageMs = session.updatedAt ? Date.now() - session.updatedAt : Infinity;
+            
+            // Active agents - infer task from context
+            if (status === 'active') {
+                if (agent.isMain && key.includes('telegram')) return '💬 Chatting with Murphy';
+                if (agent.isCron) return '⚡ Running scheduled task';
+                if (key.includes('subagent')) {
+                    const label = session.label || '';
+                    if (label.includes('dashboard')) return '🎨 Building dashboard';
+                    if (label.includes('creative')) return '🎨 Creative work';
+                    if (label.includes('qa') || label.includes('sentinel')) return '🔍 Quality check';
+                    if (label.includes('tech') || label.includes('forge')) return '⚙️ Infrastructure';
+                    if (label.includes('pm') || label.includes('atlas')) return '📋 Task management';
+                    return '⚡ Processing task';
+                }
+                return '⚡ Working';
+            }
+            
+            // Idle agents - show time context
+            if (status === 'idle') {
+                const mins = Math.floor(ageMs / 60000);
+                return `😴 Idle ${mins}m`;
+            }
+            return '';
+        }
+
+        function getStatus(session) {
+            if (session.error || (session.status && session.status.includes('error'))) {
+                return 'error';
+            }
+            // Calculate age from updatedAt timestamp
+            const ageMs = session.ageMs || (session.updatedAt ? Date.now() - session.updatedAt : Infinity);
+            if (ageMs < 300000) return 'active';      // 5 minutes
+            if (ageMs < 1800000) return 'idle';        // 30 minutes
+            return 'other';
+        }
+
+        function getAgentType(session) {
+            const kind = session.kind || '';
+            if (kind === 'group') return 'group';
+            if (session.key.includes('cron')) return 'cron';
+            if (kind === 'direct') return 'direct';
+            return 'other';
+        }
+
+        function formatAge(ageMs) {
+            const seconds = Math.floor(ageMs / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (days > 0) return `${days}d ${hours % 24}h ago`;
+            if (hours > 0) return `${hours}h ${minutes % 60}m ago`;
+            if (minutes > 0) return `${minutes}m ago`;
+            return `${seconds}s ago`;
+        }
+
+        async function fetchConfiguredAgents() {
+            try {
+                const url = `${DATA_BASE_URL}/agents.json?t=${Date.now()}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                debugLog(`Fetched ${data.agents ? data.agents.length : 0} configured agents from API`);
+                return data.agents || [];
+            } catch (error) {
+                debugLog('ERROR fetching configured agents: ' + error.message);
+                return [];
+            }
+        }
+
+        async function fetchSessions() {
+            try {
+                const url = `${DATA_BASE_URL}/sessions.json?t=${Date.now()}`;
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                debugLog(`Fetched ${data.sessions ? data.sessions.length : 0} active sessions from API`);
+                return data.sessions || [];
+            } catch (error) {
+                debugLog('ERROR fetching sessions: ' + error.message);
+                return [];
+            }
+        }
+
+        function mergeAgentsWithSessions(configuredAgents, activeSessions) {
+            // Create a map of sessions by agent ID
+            const sessionsByAgentId = new Map();
+            activeSessions.forEach(session => {
+                // Extract agent ID from session key or label
+                const key = session.key.toLowerCase();
+                let agentId = null;
+                
+                if (key.includes('agent:main:main')) {
+                    agentId = 'main';
+                } else if (key.includes('subagent')) {
+                    const label = (session.label || '').toLowerCase();
+                    // Try to extract agent ID from label
+                    for (const agent of configuredAgents) {
+                        if (label.includes(agent.id.toLowerCase())) {
+                            agentId = agent.id;
+                            break;
+                        }
+                    }
+                }
+                
+                if (agentId) {
+                    if (!sessionsByAgentId.has(agentId)) {
+                        sessionsByAgentId.set(agentId, []);
+                    }
+                    sessionsByAgentId.get(agentId).push(session);
+                }
+            });
+            
+            // Merge configured agents with session data
+            const mergedAgents = configuredAgents.map(agent => ({
+                ...agent,
+                sessions: sessionsByAgentId.get(agent.id) || [],
+                sessionCount: (sessionsByAgentId.get(agent.id) || []).length,
+                hasActiveSessions: (sessionsByAgentId.get(agent.id) || []).length > 0
+            }));
+            
+            return mergedAgents;
+        }
+
+        function getTargetBuilding(session, agent) {
+            if (agent.isCron) return buildings.cronStation;
+            if (agent.isMain) return buildings.mainHQ;
+            if (session.key.includes('subagent')) return buildings.dataLab;
+            return buildings.mainHQ;
+        }
+
+        function drawConnectionLines(sessions) {
+            const svg = document.getElementById('connection-overlay');
+            svg.innerHTML = '';
+            svg.setAttribute('width', '100%');
+            svg.setAttribute('height', '100%');
+            
+            // Find the main/leader position
+            let leaderPos = null;
+            sessions.forEach(session => {
+                if (session.key === 'main' || session.agentId === 'main') {
+                    leaderPos = agentPositions.get('main');
+                }
+            });
+            if (!leaderPos) return;
+            
+            sessions.forEach(session => {
+                const agentId = session.agentId || session.key;
+                const pos = agentPositions.get(agentId);
+                if (!pos || (pos[0] === leaderPos[0] && pos[1] === leaderPos[1])) return;
+                
+                // Draw lines from leader to all team members
+                if (agentId !== 'main') {
+                    // Determine color based on activity (via updatedAt)
+                    const isActive = session.updatedAt && (Date.now() - session.updatedAt < 300000); // 5 min
+                    const color = isActive ? '#10b981' : '#fbbf24';
+                    
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', leaderPos[0] + '%');
+                    line.setAttribute('y1', (leaderPos[1] + 5) + '%');
+                    line.setAttribute('x2', pos[0] + '%');
+                    line.setAttribute('y2', pos[1] + '%');
+                    line.setAttribute('stroke', color);
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke-dasharray', '8,4');
+                    line.setAttribute('opacity', '0.35');
+                    svg.appendChild(line);
+                }
+            });
+        }
+
+        function buildEnvironment() {
+            // Paths
+            const path1 = document.createElement('div');
+            path1.className = 'path';
+            path1.style.left = '15%';
+            path1.style.top = '45%';
+            path1.style.width = '70%';
+            path1.style.height = '40px';
+            world.appendChild(path1);
+
+            const path2 = document.createElement('div');
+            path2.className = 'path';
+            path2.style.left = '45%';
+            path2.style.top = '20%';
+            path2.style.width = '40px';
+            path2.style.height = '60%';
+            world.appendChild(path2);
+
+            // Buildings
+            [
+                { name: 'Main HQ', left: '8%', top: '18%' },
+                { name: 'Cron Station', left: '72%', top: '15%' },
+                { name: 'Data Lab', left: '60%', top: '65%' }
+            ].forEach(b => {
+                const building = document.createElement('div');
+                building.className = 'env-object building';
+                building.style.left = b.left;
+                building.style.top = b.top;
+                building.innerHTML = `
+                    <div class="building-sprite">
+                        <div class="building-roof"></div>
+                        ${[0,1].map(row => [0,1].map(col => 
+                            `<div class="building-window" style="${row ? 'bottom: 15px' : 'top: 35px'}; ${col ? 'right' : 'left'}: 20px;"></div>`
+                        ).join('')).join('')}
+                    </div>
+                    <div class="building-label">${b.name}</div>
+                `;
+                world.appendChild(building);
+            });
+
+            // Trees
+            [
+                { left: '30%', top: '12%' },
+                { left: '55%', top: '22%' },
+                { left: '20%', top: '58%' },
+                { left: '82%', top: '52%' },
+                { left: '38%', top: '68%' }
+            ].forEach(pos => {
+                const tree = document.createElement('div');
+                tree.className = 'env-object apple-tree';
+                tree.style.left = pos.left;
+                tree.style.top = pos.top;
+                tree.innerHTML = '🌳';
+                for (let j = 0; j < 3; j++) {
+                    const apple = document.createElement('div');
+                    apple.className = 'apple';
+                    apple.innerHTML = '🍎';
+                    apple.style.top = (30 + j * 15) + 'px';
+                    apple.style.left = (20 + j * 20) + 'px';
+                    apple.style.animationDelay = (j * 0.5) + 's';
+                    tree.appendChild(apple);
+                }
+                world.appendChild(tree);
+            });
+
+            // Bushes
+            ['12% 35%', '48% 15%', '68% 40%', '32% 52%', '85% 70%', '15% 75%'].forEach(pos => {
+                const [left, top] = pos.split(' ');
+                const bush = document.createElement('div');
+                bush.className = 'env-object bush';
+                bush.style.left = left;
+                bush.style.top = top;
+                bush.innerHTML = '🌿';
+                world.appendChild(bush);
+            });
+
+            debugLog('Environment built successfully');
+        }
+
+        async function renderAgents() {
+            // Clear old agents
+            document.querySelectorAll('.agent').forEach(el => el.remove());
+            
+            // Reset phi3 counter for consistent distribution
+            phi3AgentIndex = 0;
+            
+            // Fetch both configured agents and active sessions
+            const configuredAgents = await fetchConfiguredAgents();
+            const activeSessions = await fetchSessions();
+            allSessions = activeSessions;
+            
+            if (configuredAgents.length === 0) {
+                debugLog('WARNING: No configured agents found');
+                document.getElementById('agent-count').textContent = '0';
+                document.getElementById('active-count').textContent = '0';
+                document.getElementById('token-count').textContent = '0K';
+                document.getElementById('cost-estimate').textContent = '$0.00';
+                return;
+            }
+
+            // Merge configured agents with active session data
+            const mergedAgents = mergeAgentsWithSessions(configuredAgents, activeSessions);
+            
+            // Check for new agents
+            const activeCount = mergedAgents.filter(a => a.hasActiveSessions).length;
+            if (activeCount > previousAgentCount) {
+                playChime();
+            }
+            previousAgentCount = activeCount;
+
+            // Sort: main first, then by agent ID order
+            const sortedAgents = mergedAgents
+                .sort((a, b) => {
+                    // Main agent always first
+                    if (a.id === 'main') return -1;
+                    if (b.id === 'main') return 1;
+                    // Then by most recent session
+                    const aNewest = a.sessions.length > 0 ? Math.max(...a.sessions.map(s => s.updatedAt || 0)) : 0;
+                    const bNewest = b.sessions.length > 0 ? Math.max(...b.sessions.map(s => s.updatedAt || 0)) : 0;
+                    return bNewest - aNewest;
+                });
+
+            debugLog(`Rendering ${sortedAgents.length} configured agents (${activeCount} with active sessions)`);
+
+            // Org-chart layout: Leader top-center, dept heads mid-row, workers bottom
+            // Avoids buildings: (8%,18%), (72%,15%), (60%,65%) and bottom-left panels
+            const homePositions = [
+                [45, 15],  // 0: Leader (Hilary Kai) - top center
+                [25, 35],  // 1: Dept head left (Muse/Atlas)
+                [45, 38],  // 2: Dept head center
+                [65, 35],  // 3: Dept head right
+                [15, 55],  // 4: Worker far left
+                [35, 55],  // 5: Worker center-left
+                [55, 55],  // 6: Worker center-right
+                [75, 55],  // 7: Worker right
+            ];
+
+            sortedAgents.forEach((agent, i) => {
+                if (i >= homePositions.length) return; // Skip if more agents than positions
+                
+                const [homeX, homeY] = homePositions[i];
+                const status = agent.hasActiveSessions ? 'active' : 'idle';
+                const sessionCount = agent.sessionCount;
+                const primarySession = agent.sessions.length > 0 ? agent.sessions[0] : null;
+
+                debugLog(`Agent ${i+1}: ${agent.name} (${agent.emoji}) - ${status} - ${sessionCount} sessions`);
+
+                // Determine position based on status
+                let x = homeX;
+                let y = homeY;
+                
+                if (status === 'active' && agent.id !== 'main') {
+                    // Distribute active agents to buildings (not including main)
+                    if (agent.id === 'atlas' || agent.id === 'muse') {
+                        x = buildings.cronStation.x;
+                        y = buildings.cronStation.y;
+                    } else {
+                        x = buildings.dataLab.x;
+                        y = buildings.dataLab.y;
+                    }
+                } else if (agent.id === 'main' && status === 'active') {
+                    x = buildings.mainHQ.x;
+                    y = buildings.mainHQ.y;
+                }
+                
+                // Store position for connection lines
+                agentPositions.set(agent.id, [x, y]);
+
+                const agentEl = document.createElement('div');
+                agentEl.className = `agent status-${status}`;
+                agentEl.style.left = x + '%';
+                agentEl.style.top = y + '%';
+                agentEl.style.zIndex = 10 + Math.floor(y);
+                agentEl.dataset.agentId = agent.id;
+                agentEl.dataset.homeX = homeX;
+                agentEl.dataset.homeY = homeY;
+                
+                const sessionCountBadge = sessionCount > 0 ? `<div class="alert-bubble" style="background: #3b82f6;">${sessionCount}</div>` : '';
+                
+                const taskDisplay = status === 'active' 
+                    ? `<div class="agent-current-task">⚡ Active (${sessionCount} session${sessionCount !== 1 ? 's' : ''})</div>`
+                    : `<div class="agent-current-task">😴 Idle</div>`;
+                
+                agentEl.innerHTML = `
+                    <div class="agent-sprite type-other">
+                        ${sessionCountBadge}
+                        <div class="status-dot status-${status}"></div>
+                        ${agent.emoji}
+                    </div>
+                    <div class="agent-name">${agent.name}</div>
+                    <div class="agent-task">${agent.model}</div>
+                    ${taskDisplay}
+                `;
+                
+                agentEl.addEventListener('click', () => {
+                    if (primarySession) {
+                        showInfo(primarySession, { emoji: agent.emoji, name: agent.name, role: 'Configured Agent' });
+                    } else {
+                        alert(`${agent.name} (${agent.emoji})\nModel: ${agent.model}\nStatus: Idle\nNo active sessions`);
+                    }
+                });
+                world.appendChild(agentEl);
+            });
+
+            // Draw connection lines from leader to team (using agent IDs now)
+            // Create synthetic session-like objects for drawing
+            const syntheticSessions = sortedAgents.map(agent => ({
+                agentId: agent.id,
+                key: agent.id,
+                updatedAt: agent.sessions.length > 0 ? Math.max(...agent.sessions.map(s => s.updatedAt || 0)) : 0
+            }));
+            drawConnectionLines(syntheticSessions);
+
+            // Update stats with configured agents and active sessions
+            // Count from new /api/agents endpoint (session-derived)
+            const totalAgents = configuredAgents.length;
+            const activeAgents = configuredAgents.filter(a => a.active).length;
+            const totalTokens = activeSessions.reduce((sum, s) => sum + (s.totalTokens || 0), 0);
+            const totalCost = calculateCost(activeSessions);
+            
+            document.getElementById('agent-count').textContent = totalAgents;
+            document.getElementById('active-count').textContent = activeAgents;
+            document.getElementById('token-count').textContent = Math.round(totalTokens / 1000) + 'K';
+            document.getElementById('cost-estimate').textContent = '$' + totalCost.toFixed(2);
+            
+            debugLog(`Stats: ${totalAgents} agents, ${activeAgents} active, ${Math.round(totalTokens/1000)}K tokens, $${totalCost.toFixed(2)} cost`);
+
+            // Update activity log
+            updateActivityLog(activeSessions);
+            
+            // Update leaderboard
+            updateLeaderboard(activeSessions, sortedAgents);
+        }
+
+        function updateActivityLog(sessions) {
+            const logEntries = document.getElementById('log-entries');
+            logEntries.innerHTML = '';
+
+            // Take most recent 10 sessions
+            const recentSessions = sessions
+                .filter(s => s.updatedAt)
+                .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                .slice(0, 10);
+
+            if (recentSessions.length === 0) {
+                logEntries.innerHTML = '<div class="log-entry" style="opacity: 0.6;">No recent activity</div>';
+                return;
+            }
+
+            recentSessions.forEach(session => {
+                const agent = identifyAgent(session);
+                const ageStr = formatAge(session.updatedAt ? Date.now() - session.updatedAt : 0);
+                const status = getStatus(session);
+                const statusEmoji = status === 'active' ? '🟢' : status === 'idle' ? '🟡' : status === 'error' ? '🔴' : '⚫';
+                
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `
+                    <span class="log-time">${ageStr}</span>
+                    ${statusEmoji}
+                    <span class="log-agent">${agent.emoji} ${agent.name}</span>
+                    <span style="opacity: 0.8;">- ${agent.role}</span>
+                `;
+                logEntries.appendChild(entry);
+            });
+        }
+
+        function updateLeaderboard(sessions, agents) {
+            const leaderboardEntries = document.getElementById('leaderboard-entries');
+            leaderboardEntries.innerHTML = '';
+            
+            // Build token usage per agent ID
+            const tokensByAgent = new Map();
+            
+            // Initialize all agents with 0 tokens
+            agents.forEach(agent => {
+                tokensByAgent.set(agent.id, { agent, tokens: 0 });
+            });
+            
+            // Sum tokens from sessions
+            sessions.forEach(s => {
+                const key = s.key.toLowerCase();
+                let agentId = null;
+                
+                if (key.includes('agent:main:main')) {
+                    agentId = 'main';
+                } else if (key.includes('subagent')) {
+                    const label = (s.label || '').toLowerCase();
+                    for (const agent of agents) {
+                        if (label.includes(agent.id.toLowerCase())) {
+                            agentId = agent.id;
+                            break;
+                        }
+                    }
+                }
+                
+                if (agentId && tokensByAgent.has(agentId)) {
+                    const entry = tokensByAgent.get(agentId);
+                    entry.tokens += (s.totalTokens || 0);
+                }
+            });
+            
+            const topAgents = Array.from(tokensByAgent.values())
+                .sort((a, b) => b.tokens - a.tokens)
+                .slice(0, 7); // Show all agents or top 7
+            
+            if (topAgents.length === 0) {
+                leaderboardEntries.innerHTML = '<div class="leaderboard-entry" style="opacity: 0.6;">No agents configured</div>';
+                return;
+            }
+            
+            topAgents.forEach((item, index) => {
+                const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣'];
+                const entry = document.createElement('div');
+                entry.className = 'leaderboard-entry';
+                const tokenDisplay = item.tokens > 0 ? `${Math.round(item.tokens / 1000)}K` : '-';
+                entry.innerHTML = `
+                    <span class="leaderboard-rank">${medals[index]}</span>
+                    <span class="leaderboard-agent">${item.agent.emoji} ${item.agent.name}</span>
+                    <span class="leaderboard-tokens">${tokenDisplay}</span>
+                `;
+                leaderboardEntries.appendChild(entry);
+            });
+        }
+
+        function showInfo(session, agent) {
+            const panel = document.getElementById('info-panel');
+            const status = getStatus(session);
+            const statusColor = status === 'active' ? '#10b981' : status === 'idle' ? '#fbbf24' : status === 'error' ? '#ef4444' : '#6b7280';
+            
+            // Build history section
+            let historyHTML = '';
+            if (session.lastMessages && session.lastMessages.length > 0) {
+                historyHTML = '<div class="history-section"><h3>📜 Recent History</h3>';
+                session.lastMessages.slice(0, 5).forEach(msg => {
+                    const msgTime = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'Unknown';
+                    const msgPreview = (msg.content || msg.text || 'No content').substring(0, 150);
+                    historyHTML += `
+                        <div class="history-entry">
+                            <span class="history-time">${msgTime}</span>
+                            <div>${msgPreview}${msgPreview.length >= 150 ? '...' : ''}</div>
+                        </div>
+                    `;
+                });
+                historyHTML += '</div>';
+            } else if (session.label || session.task) {
+                historyHTML = `
+                    <div class="history-section">
+                        <h3>📜 Task Info</h3>
+                        <div class="history-entry">
+                            ${session.label || session.task || 'No task description available'}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('panel-title').textContent = `${agent.emoji} ${agent.name}`;
+            document.getElementById('panel-content').innerHTML = `
+                <div class="info-row">
+                    <span class="info-label">Role:</span> ${agent.role}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    <span style="color: ${statusColor};">${status.toUpperCase()}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Active:</span> ${formatAge(session.updatedAt ? Date.now() - session.updatedAt : 0)}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Type:</span> ${session.kind || 'N/A'}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Model:</span> ${session.model || 'N/A'}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Total Tokens:</span> ${(session.totalTokens || 0).toLocaleString()}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Input/Output:</span> ${(session.inputTokens || 0).toLocaleString()} / ${(session.outputTokens || 0).toLocaleString()}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Context Limit:</span> ${(session.contextTokens || 0).toLocaleString()}
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Session ID:</span> <span style="font-size: 10px; word-break: break-all;">${session.sessionId || 'N/A'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Key:</span> <span style="font-size: 10px; word-break: break-all;">${session.key}</span>
+                </div>
+                ${historyHTML}
+            `;
+            panel.classList.add('active');
+        }
+
+        world.addEventListener('click', (e) => {
+            if (!e.target.closest('.agent')) {
+                document.getElementById('info-panel').classList.remove('active');
+            }
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            debugLog('Manual refresh triggered');
+            renderAgents();
+            fetchAndRenderStats();
+            fetchAndRenderCrons();
+        });
+
+        // NEW: Fetch and render stats (session types + model usage)
+        async function fetchAndRenderStats() {
+            try {
+                const url = `${DATA_BASE_URL}/stats.json?t=${Date.now()}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                
+                // Update top bar stats from this endpoint
+                document.getElementById('active-count').textContent = data.active_count || 0;
+                document.getElementById('cost-estimate').textContent = '$' + (data.total_cost || 0).toFixed(2);
+                
+                // Render session types panel
+                const typesContent = document.getElementById('session-types-content');
+                const types = data.session_types || {};
+                const typeEmojis = {
+                    'main': '🤖',
+                    'telegram': '💬',
+                    'cron': '⏰',
+                    'subagent': '🔧',
+                    'other': '❓'
+                };
+                let typesHtml = '';
+                for (const [type, count] of Object.entries(types)) {
+                    if (count > 0) {
+                        typesHtml += `
+                            <div class="session-type-row">
+                                <span class="type-label">${typeEmojis[type] || '❓'} ${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                                <span class="type-count">${count}</span>
+                            </div>
+                        `;
+                    }
+                }
+                typesContent.innerHTML = typesHtml || '<div style="color: #00aa00;">No sessions</div>';
+                
+                // Render model usage panel
+                const modelContent = document.getElementById('model-usage-content');
+                const modelStats = data.model_stats || {};
+                
+                // Sort by cost descending
+                const sortedModels = Object.entries(modelStats)
+                    .sort((a, b) => b[1].cost - a[1].cost);
+                
+                let modelHtml = '';
+                for (const [model, stats] of sortedModels) {
+                    const tokens = stats.tokens || 0;
+                    const cost = stats.cost || 0;
+                    const isFree = cost === 0 && tokens > 0;
+                    
+                    // Determine cost class
+                    let costClass = 'cost-free';
+                    if (cost > 0 && cost < 0.05) costClass = 'cost-cheap';
+                    else if (cost >= 0.05 && cost < 0.20) costClass = 'cost-moderate';
+                    else if (cost >= 0.20 && cost < 1.00) costClass = 'cost-expensive';
+                    else if (cost >= 1.00) costClass = 'cost-very-expensive';
+                    
+                    // Shorten model name for display
+                    let displayName = model
+                        .replace('claude-', '')
+                        .replace('gemini-', 'g-')
+                        .replace('-exp', '');
+                    
+                    const tokenDisplay = tokens > 1000000 
+                        ? (tokens / 1000000).toFixed(1) + 'M' 
+                        : Math.round(tokens / 1000) + 'K';
+                    
+                    modelHtml += `
+                        <div class="model-row">
+                            <span class="model-name">${displayName}</span>
+                            <span class="model-tokens">${tokenDisplay}</span>
+                            <span class="model-cost ${costClass}">
+                                ${isFree ? '' : '$' + cost.toFixed(2)}
+                                ${isFree ? '<span class="free-badge">FREE</span>' : ''}
+                            </span>
+                        </div>
+                    `;
+                }
+                modelContent.innerHTML = modelHtml || '<div style="color: #00aa00;">No model data</div>';
+                
+                debugLog(`Stats updated: ${data.total_sessions} sessions, $${(data.total_cost || 0).toFixed(2)} cost`);
+            } catch (error) {
+                debugLog('ERROR fetching stats: ' + error.message);
+                document.getElementById('session-types-content').innerHTML = 
+                    '<div style="color: #ff4444;">Error loading stats</div>';
+            }
+        }
+
+        // NEW: Fetch and render cron jobs
+        async function fetchAndRenderCrons() {
+            try {
+                const url = `${DATA_BASE_URL}/crons.json?t=${Date.now()}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                
+                const cronContent = document.getElementById('cron-jobs-content');
+                const jobs = data.jobs || [];
+                
+                if (jobs.length === 0) {
+                    cronContent.innerHTML = '<div style="color: #00aa00; font-style: italic;">No cron jobs configured</div>';
+                    return;
+                }
+                
+                function formatSchedule(sched) {
+                    if (!sched || typeof sched === 'string') return sched || '?';
+                    if (sched.kind === 'cron') return sched.expr || '?';
+                    if (sched.kind === 'every') {
+                        const ms = sched.everyMs || 0;
+                        if (ms >= 86400000) return `every ${Math.round(ms/86400000)}d`;
+                        if (ms >= 3600000)  return `every ${Math.round(ms/3600000)}h`;
+                        if (ms >= 60000)    return `every ${Math.round(ms/60000)}m`;
+                        return `every ${ms}ms`;
+                    }
+                    if (sched.kind === 'at') return sched.at ? new Date(sched.at).toLocaleString() : '?';
+                    return JSON.stringify(sched);
+                }
+
+                function formatCronTime(ms) {
+                    if (!ms) return 'Never';
+                    const diff = Date.now() - ms;
+                    if (diff < 0) return 'upcoming';
+                    return formatAge(diff) + ' ago';
+                }
+
+                let cronHtml = '';
+                for (const job of jobs) {
+                    const name = job.name || job.id || 'Unnamed';
+                    const schedStr = formatSchedule(job.schedule);
+                    const enabled = job.enabled !== false;
+                    const state = job.state || {};
+                    const lastRunMs = state.lastRunAtMs || null;
+                    const nextRunMs = state.nextRunAtMs || null;
+                    const lastStatus = state.lastStatus || '';
+                    const lastRunStr = formatCronTime(lastRunMs);
+                    const nextRunStr = nextRunMs ? formatAge(Math.max(0, nextRunMs - Date.now())) : '?';
+                    const statusDot = lastStatus === 'error' ? '⚠' : (enabled ? '●' : '○');
+                    const statusColor = lastStatus === 'error' ? '#ff6600' : (enabled ? '#00ff88' : '#666');
+
+                    cronHtml += `
+                        <div class="cron-row">
+                            <span class="cron-name" title="${name}">${name}</span>
+                            <span class="cron-schedule" title="Next: ${nextRunStr}">${schedStr}</span>
+                            <span class="cron-last" title="Last run">${lastRunStr}</span>
+                            <span class="cron-status" style="color:${statusColor}">${statusDot}</span>
+                        </div>
+                    `;
+                }
+                cronContent.innerHTML = cronHtml;
+                debugLog(`Crons updated: ${jobs.length} jobs`);
+            } catch (error) {
+                debugLog('ERROR fetching crons: ' + error.message);
+                document.getElementById('cron-jobs-content').innerHTML = 
+                    '<div style="color: #00aa00; font-style: italic;">Cron data unavailable</div>';
+            }
+        }
+
+        // Initialize
+        debugLog('Dashboard initializing...');
+        generateStars();
+        buildEnvironment();
+        updateDayNightCycle();
+        renderAgents();
+        fetchAndRenderStats();
+        fetchAndRenderCrons();
+        setInterval(renderAgents, 30000); // Auto-refresh every 30s
+        setInterval(fetchAndRenderStats, 30000); // Refresh stats every 30s
+        setInterval(fetchAndRenderCrons, 60000); // Refresh crons every 60s
+        setInterval(updateDayNightCycle, 60000); // Update day/night every minute
+
+        // Mobile: refresh immediately when tab becomes visible again
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                debugLog('Tab visible — refreshing...');
+                renderAgents();
+                fetchAndRenderStats();
+                fetchAndRenderCrons();
+            }
+        });
+
+        // Mobile: also refresh on window focus (covers PWA / home screen scenarios)
+        window.addEventListener('focus', () => {
+            debugLog('Window focused — refreshing...');
+            renderAgents();
+            fetchAndRenderStats();
+        });
+
+        // Attempt Screen Wake Lock (keeps screen on while viewing — user must interact first)
+        let wakeLock = null;
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    debugLog('Wake lock active');
+                    wakeLock.addEventListener('release', () => {
+                        debugLog('Wake lock released');
+                    });
+                } catch (err) {
+                    debugLog('Wake lock failed: ' + err.message);
+                }
+            }
+        }
+        // Re-acquire wake lock when tab becomes visible (it auto-releases on hide)
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+        // Acquire on first user interaction (required by browsers)
+        document.addEventListener('click', requestWakeLock, { once: true });
+
+        debugLog('Dashboard ready!');
+    </script>
+<span id="gh-last-updated" style="display:none;position:fixed;bottom:8px;right:12px;font-size:11px;color:#888;background:rgba(0,0,0,0.5);padding:3px 8px;border-radius:4px;z-index:9999;font-family:monospace;"></span>
+</body>
+</html>
