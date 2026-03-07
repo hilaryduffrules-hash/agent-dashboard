@@ -5,7 +5,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 TOKEN_FILE="$HOME/.openclaw/dashboard-auth-token.txt"
-GIT_SSH="GIT_SSH_COMMAND=ssh -i $HOME/.ssh/github_openclaw_key -o StrictHostKeyChecking=no"
 API_BASE="http://localhost:8888"
 
 # Read auth token
@@ -55,6 +54,6 @@ fi
 git add data/
 git commit -m "data: $(date -u '+%Y-%m-%d %H:%M UTC')" --quiet
 
-env $GIT_SSH git push origin main --quiet
+GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_openclaw_key -o StrictHostKeyChecking=no" git push origin main --quiet
 
 echo "[push-data] Pushed at $(date)"
